@@ -17,12 +17,12 @@ lapply(packages, library, character.only = TRUE)
 
 set.seed(1234)
 
-root <- "/Users/jiaminyin/Library/CloudStorage/OneDrive-UniversityofRochester/Research/ELSA_proj/Network_Analysis/"
+# root <- "mypath"
 # Set working directory
-setwd("/Users/jiaminyin/Library/CloudStorage/OneDrive-UniversityofRochester/Research/ELSA_proj/Network_Analysis/output")
+# setwd("mypath/output")
 
 # ---- 1. Data Preprocessing ----
-dat_long <- read.csv(file.path(root, "data", "network_xsec.csv"), header = TRUE)
+dat_long <- read.csv(file.path(root, "data", "network.csv"), header = TRUE)
 
 dat_long <- dat_long %>%
   filter(core_mem == 1)
@@ -263,3 +263,117 @@ write.csv(
 
 saveRDS(fit_search, "fit_search_adj.rds") # Model searched based on BIC
 
+### Covariance matrix
+fit_cov <- panelgvar(
+  data = network_wide,
+  vars = vars_mat,
+  estimator = "FIML",
+  missing = "fiml",
+  beta = "full",
+  within_latent = "cov",
+  between_latent = "cov"
+)
+
+fit_cov <- runmodel(fit_cov)
+
+## First remove clearly nonsignificant edges
+fit_cov_pruned <- prune(
+  fit_cov,
+  alpha = 0.05,
+  recursive = TRUE
+)
+
+## Then use BIC search starting from the simpler model
+fit_cov_search <- modelsearch(
+  fit_cov_pruned,
+  criterion = "BIC",
+  prunealpha = 0.05,
+  addalpha = 0.05
+)
+
+fit_cov_search <- runmodel(fit_cov_search)
+
+### Precision matrix
+fit_prec <- panelgvar(
+  data = network_wide,
+  vars = vars_mat,
+  estimator = "FIML",
+  missing = "fiml",
+  beta = "full",
+  within_latent = "prec",
+  between_latent = "prec"
+)
+
+fit_prec <- runmodel(fit_prec)
+
+## First remove clearly nonsignificant edges
+fit_prec_pruned <- prune(
+  fit_prec,
+  alpha = 0.05,
+  recursive = TRUE
+)
+
+## Then use BIC search starting from the simpler model
+fit_prec_search <- modelsearch(
+  fit_prec_pruned,
+  criterion = "BIC",
+  prunealpha = 0.05,
+  addalpha = 0.05
+)
+
+fit_prec_search <- runmodel(fit_prec_search)
+
+fit_indices_cov <- fit(fit_cov_search) %>%
+  filter(Measure %in% c(
+    "chisq", "df", "pvalue", "cfi", "tli", "rmsea", "rmsea.ci.lower",
+    "rmsea.ci.upper", "srmr"
+  )) %>%
+  rename(Value_cov=Value)
+fit_indices_prec <- fit(fit_prec_search) %>%
+  filter(Measure %in% c(
+    "chisq", "df", "pvalue", "cfi", "tli", "rmsea", "rmsea.ci.lower",
+    "rmsea.ci.upper", "srmr"
+  ))%>%
+  rename(Value_prec=Value)
+
+fit_indices_all <- fit_indices_cov %>%
+  full_join(fit_indices_prec, by = "Measure") %>%
+  mutate(
+    Measure = recode(
+      Measure,
+      nobs = "Observations",
+      npar = "Number of parameters",
+      df = "Degrees of freedom",
+      chisq = "Chi-square",
+      pvalue = "p-value",
+      cfi = "CFI",
+      tli = "TLI",
+      rmsea = "RMSEA",
+      rmsea.ci.lower = "RMSEA 95% CI lower",
+      rmsea.ci.upper = "RMSEA 95% CI upper",
+      srmr = "SRMR",
+      aic.ll = "AIC",
+      aic.x = "AIC based on chi-square"
+    ),
+    Value_cov = case_when(
+      Measure == "p-value" & as.numeric(Value_cov) < 0.001 ~ "<0.001",
+      Measure %in% c("CFI", "TLI", "RMSEA", "RMSEA 95% CI lower",
+                     "RMSEA 95% CI upper", "SRMR") ~ sprintf("%.4f", as.numeric(Value_cov)),
+      Measure %in% c("Chi-square", "AIC", "AIC based on chi-square") ~ sprintf("%.2f", as.numeric(Value_cov)),
+      TRUE ~ as.character(round(as.numeric(Value_cov), 0))
+    ),
+    Value_prec = case_when(
+      Measure == "p-value" & as.numeric(Value_prec) < 0.001 ~ "<0.001",
+      Measure %in% c("CFI", "TLI", "RMSEA", "RMSEA 95% CI lower",
+                     "RMSEA 95% CI upper", "SRMR") ~ sprintf("%.4f", as.numeric(Value_prec)),
+      Measure %in% c("Chi-square", "AIC", "AIC based on chi-square") ~ sprintf("%.2f", as.numeric(Value_prec)),
+      TRUE ~ as.character(round(as.numeric(Value_prec), 0))
+    )
+  )
+
+## Save model results
+write.csv(
+  fit_indices_all,
+  "panelGVAR_fit_indices_alt.csv",
+  row.names = FALSE
+)
