@@ -8,7 +8,7 @@ library(janitor)
 library(labelled)
 
 rm(list = ls())
-setwd("/Users/jiaminyin/Research_local/ELSA_rawdata/data")
+# setwd("path/to/raw/data")
 list.files()
 
 # Read in data 
@@ -470,4 +470,4 @@ core_all <- core_all %>%
   select(idauniq, year, wave, indout, hhout, core_mem, starts_with("finstat"),
          all_of(keep_vars), any_of(c("nrow", "nclm", "ncorrect", "nmissed", "nrowclm")))
 
-write_csv(core_all, "/Users/jiaminyin/Library/CloudStorage/OneDrive-UniversityofRochester/Research/ELSA_proj/data/core_all.csv")
+write_csv(core_all, "path/to/data/core_all.csv")
