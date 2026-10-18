@@ -17,14 +17,14 @@ lapply(packages, library, character.only = TRUE)
 
 set.seed(1234)
 
-root <- "/Users/jiaminyin/Library/CloudStorage/OneDrive-UniversityofRochester/Research/ELSA_proj/Network_Analysis/"
+#root <- "mypath"
 # Set working directory
-setwd("/Users/jiaminyin/Library/CloudStorage/OneDrive-UniversityofRochester/Research/ELSA_proj/Network_Analysis/output")
+#setwd("mypath/output")
 
-final_pruned <- readRDS("fit_pruned_adj.rds") # Decide to use the model searched one
+final <- readRDS("fit_search_adj.rds") # Decide to use the model searched one
 
 # ---- 1. Panel GVAR model fit ----
-fit_indices <- fit(final_pruned)
+fit_indices <- fit(final)
 
 panel_gvar_fit_table <- fit_indices %>%
   filter(
@@ -184,7 +184,7 @@ common_layout <- matrix(
 rownames(common_layout) <- node_labels
 
 # Temporal network: directed lag-1 effects
-temporal_mat <- getmatrix(final_pruned, "beta")
+temporal_mat <- getmatrix(final, "beta")
 rownames(temporal_mat) <- node_labels
 colnames(temporal_mat) <- node_labels
 
@@ -286,7 +286,7 @@ legend(
 dev.off()
 
 # Contemporaneous network: same-wave partial correlations
-contemp_mat <- getmatrix(final_pruned, "omega_zeta_within")
+contemp_mat <- getmatrix(final, "omega_zeta_within")
 rownames(contemp_mat) <- node_labels
 colnames(contemp_mat) <- node_labels
 
@@ -387,7 +387,7 @@ legend(
 dev.off()
 
 # Between-person network: stable between-person associations
-between_mat <- getmatrix(final_pruned, "omega_zeta_between")
+between_mat <- getmatrix(final, "omega_zeta_between")
 rownames(between_mat) <- node_labels
 colnames(between_mat) <- node_labels
 
@@ -465,7 +465,7 @@ legend(
 dev.off()
 
 # ---- 6. All edges ----
-param_table <- parameters(final_pruned)
+param_table <- parameters(final)
 
 # Temporal edges
 temporal_edges_cross <- param_table %>%
@@ -633,89 +633,6 @@ contemp_edges_within <- param_table %>%
   )
 write.csv(contemp_edges_within, "tbl_contemp_edges_within_adj.csv", row.names = FALSE)
 
-# Between-person edges
-between_edges_cross <- param_table %>%
-  filter(str_detect(matrix, "omega_zeta_between")) %>%
-  mutate(
-    From = node_labels[col],
-    To   = node_labels[row],
-    From_construct = node_construct[From],
-    To_construct   = node_construct[To],
-    Edge_type = ifelse(
-      From_construct == To_construct,
-      "Within-domain",
-      "Cross-domain"
-    )
-  ) %>%
-  filter(
-    Edge_type == "Cross-domain" #, est != 0
-  ) %>%
-  mutate(
-    Direction = paste0(From, " \u2192 ", To),
-    Construct_path = paste0(From_construct, " \u2192 ", To_construct),
-    abs_est = abs(est),
-    p_display = case_when(
-      is.na(p) ~ NA_character_,
-      p < 0.001 ~ "<0.001",
-      TRUE ~ sprintf("%.3f", p)
-    )
-  ) %>%
-  arrange(desc(abs_est)) %>%
-  select(
-    Direction,
-    Construct_path,
-    From_construct,
-    From,
-    To_construct,
-    To,
-    Estimate = est,
-    SE = se,
-    p = p_display,
-    abs_est
-  )
-write.csv(between_edges_cross, "tbl_between_edges_cross_adj.csv", row.names = FALSE)
-
-between_edges_within <- param_table %>%
-  filter(str_detect(matrix, "omega_zeta_between")) %>%
-  mutate(
-    From = node_labels[col],
-    To   = node_labels[row],
-    From_construct = node_construct[From],
-    To_construct   = node_construct[To],
-    Edge_type = ifelse(
-      From_construct == To_construct,
-      "Within-domain",
-      "Cross-domain"
-    )
-  ) %>%
-  filter(
-    Edge_type == "Within-domain" #, est != 0
-  ) %>%
-  mutate(
-    Direction = paste0(From, " \u2192 ", To),
-    Construct_path = paste0(From_construct, " \u2192 ", To_construct),
-    abs_est = abs(est),
-    p_display = case_when(
-      is.na(p) ~ NA_character_,
-      p < 0.001 ~ "<0.001",
-      TRUE ~ sprintf("%.3f", p)
-    )
-  ) %>%
-  arrange(desc(abs_est)) %>%
-  select(
-    Direction,
-    Construct_path,
-    From_construct,
-    From,
-    To_construct,
-    To,
-    Estimate = est,
-    SE = se,
-    p = p_display,
-    abs_est
-  )
-write.csv(between_edges_within, "tbl_between_edges_within_adj.csv", row.names = FALSE)
-
 # ---- 7. Create bridge and centrality graphs ----
 # Bridge
 bridge_temporal <- bridge(
@@ -820,57 +737,6 @@ centrality_plot_combined <- p_centrality_temporal / p_centrality_contemp +
 ggsave(
   "fig_centrality_adj.png",
   centrality_plot_combined,
-  width = 9,
-  height = 12,
-  units = "in",
-  dpi = 300
-)
-
-# Between-person 
-bridge_between <- bridge(
-  between_mat,
-  communities = node_labels
-)
-
-between_qgraph <- qgraph(
-  between_mat,
-  directed = FALSE,
-  labels = node_labels,
-  DoNotPlot = TRUE
-)
-
-p_between <- plot(
-  bridge_between,
-  include = c(
-    "Bridge Strength",
-    "Bridge Expected Influence (1-step)",
-    "Bridge Expected Influence (2-step)"
-  )
-) +
-  ggtitle("Between-person Network") +
-  theme(
-    plot.title = element_text(face = "bold", hjust = 0.5)
-  )
-
-p_between_contemp <- centralityPlot(
-  between_qgraph,
-  include = c(
-    "Strength",
-    "ExpectedInfluence"
-  ),
-  scale = "raw"
-) +
-  ggtitle("Between-person Network") +
-  theme(
-    plot.title = element_text(face = "bold", hjust = 0.5)
-  )
-
-between_plot_combined <- p_between / p_between_contemp +
-  plot_layout(ncol = 1)
-
-ggsave(
-  "fig_between_adj.png",
-  between_plot_combined,
   width = 9,
   height = 12,
   units = "in",
