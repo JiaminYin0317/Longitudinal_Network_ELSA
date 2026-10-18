@@ -9,12 +9,12 @@ library(labelled)
 library(zoo)
 
 rm(list = ls())
-setwd("/Users/jiaminyin/Library/CloudStorage/OneDrive-UniversityofRochester/Research/ELSA_proj/Network_Analysis/data")
+# setwd("path/to/data")
 list.files()
 
 # Read in data 
-core <- read.csv("/Users/jiaminyin/Library/CloudStorage/OneDrive-UniversityofRochester/Research/ELSA_proj/data/core_all.csv", header = TRUE)
-core_cond <- read.csv("/Users/jiaminyin/Library/CloudStorage/OneDrive-UniversityofRochester/Research/ELSA_proj/data/core_cond_all.csv", header = TRUE)
+core <- read.csv("mypath/core_all.csv", header = TRUE)
+core_cond <- read.csv("mypath/core_cond_all.csv", header = TRUE)
 
 core_all <- core %>%
   left_join(core_cond, by = "idauniq")
@@ -59,10 +59,6 @@ core_all <- core_all %>%
     edqual
   )) %>%
   
-  # fill sex upward (so sex is filled wherever there is any info)
-  mutate(indsex = ifelse(idauniq ==150730, 2, 
-                         ifelse(idauniq ==150856, 1, indsex))) %>%
-  
   # fill ethnicity both forward and backward within person
   mutate(fqethnr = ifelse(
     is.na(fqethnr),
@@ -87,7 +83,7 @@ core_all <- core_all %>%
     fqend
   )) %>%
   
-  # then fill income quartile upward (so fqend is filled wherever there is any info)
+  # then fill income quartile upward 
   mutate(totinc_q = ifelse(
     is.na(totinc_q),
     zoo::na.locf(totinc_q, na.rm = FALSE),  # fill forward
@@ -238,4 +234,4 @@ core_all <- core_all %>%
          cesd_sad = pscedg, cesd_going = pscedh) 
 
 # Save
-write_csv(core_all, "/Users/jiaminyin/Library/CloudStorage/OneDrive-UniversityofRochester/Research/ELSA_proj/Network_Analysis/data/network_xsec.csv")
+write_csv(core_all, "mypath/network_data.csv")
